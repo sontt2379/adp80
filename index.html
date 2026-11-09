@@ -403,8 +403,19 @@
         });
 
         function sendMidiMessage(msg) {
+            // In ra mã HEX của tín hiệu để dễ theo dõi
+            let hexMsg = msg.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+            console.log(`MIDI Sent đến [${outputPort ? outputPort.name : 'Chưa chọn'}]:`, hexMsg);
+        
             if (outputPort) {
-                try { outputPort.send(msg); } catch (e) {}
+                try { 
+                    outputPort.send(msg); 
+                    console.log("-> Gửi thành công!");
+                } catch (e) {
+                    console.error("-> Lỗi khi gửi MIDI:", e);
+                }
+            } else {
+                console.warn("-> Chưa chọn thiết bị MIDI Output!");
             }
         }
     </script>
