@@ -402,73 +402,20 @@
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
         });
 
-let currentBankMSB = 0; 
-
-function sendMidiMessage(msg) {
-    if (outputPort) {
-        try { 
-            let type = (msg[0] >= 0xC0 && msg[0] <= 0xCF) ? 'voice' : 'style';
-            let channel = (type === 'voice') ? 0 : 1; 
-            let progNum = msg[1];
-
-            // Thử lần lượt các Bank phổ biến trên đàn điện: 0, 1, 32, 64, 120, 127
-            // Mỗi lần bác xoay núm, nó sẽ tự động đổi Bank để test xem Bank nào ăn lệnh
-            const testBanks = [0, 1, 32, 64, 120, 127];
-            currentBankMSB = testBanks[(progNum + currentBankMSB) % testBanks.length];
-
-            // 1. Gửi lệnh Control Change chọn Bank MSB (CC 0)
-            outputPort.send([0xB0 | channel, 0x00, currentBankMSB]); 
-            
-            // 2. Gửi lệnh Control Change chọn Bank LSB (CC 32) = 0 cho chắc chắn
-            outputPort.send([0xB0 | channel, 0x20, 0x00]); 
-
-            // 3. Gửi lệnh Program Change đổi tiếng/style
-            outputPort.send([msg[0], progNum]);
-
-            console.log(`Đang test -> Bank MSB: ${currentBankMSB} | Program Change: ${progNum}`);
-        } catch (e) {
-            console.error("Lỗi gửi MIDI:", e);
-        }
-    }
-}
-
-
         
-// Thêm dropdown chọn MIDI Input tương tự như Output để test
-const inputSelect = document.createElement('select');
-inputSelect.id = 'midiInputSelect';
-inputSelect.innerHTML = '<option value="">-- Chọn thiết bị MIDI Input (để nghe) --</option>';
-document.getElementById('midiOutputSelect').after(inputSelect);
+        function sendMidiMessage(msg) {
+            if (outputPort) {
+                let progNum = msg[1];
+                // Quét từ 0xC0 đến 0xCF (Channel 1 đến 16)
+                for (let ch = 0xC0; ch <= 0xCF; ch++) {
+                    outputPort.send([ch, progNum]);
+                }
+                console.log(`Đã rải thảm Program Change ${progNum} lên cả 16 channels!`);
+            }
+        }
 
-let activeInput = null;
 
-// Cập nhật danh sách Input khi kết nối MIDI sẵn sàng
-if (midiAccess) {
-    midiAccess.inputs.forEach(input => {
-        let option = document.createElement('option');
-        option.value = input.id;
-        option.text = input.name;
-        inputSelect.appendChild(option);
-    });
-}
 
-inputSelect.addEventListener('change', (e) => {
-    // Ngắt kết nối input cũ nếu có
-    if (activeInput) {
-        activeInput.onmidimessage = null;
-    }
-    
-    activeInput = e.target.value ? midiAccess.inputs.get(e.target.value) : null;
-    
-    if (activeInput) {
-        console.log(`Đang lắng nghe tín hiệu từ: ${activeInput.name}`);
-        activeInput.onmidimessage = (event) => {
-            // Chuyển đổi mảng byte nhận được thành dạng HEX để dễ nhìn trên Console
-            let hexData = Array.from(event.data).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-            console.log(`🎵 [MIDI IN từ đàn]:`, hexData);
-        };
-    }
-});
 
         
     </script>
