@@ -402,25 +402,35 @@
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
         });
 
-        function sendMidiMessage(msg) {
-            if (outputPort) {
-                try { 
-                    let type = (msg[0] >= 0xC0 && msg[0] <= 0xCF) ? 'voice' : 'style';
-                    let channel = (type === 'voice') ? 0 : 1; // Voice channel 1 (0x80/0xC0), Style channel 2
-                    let progNum = msg[1];
-        
-                    // 1. Gửi lệnh chọn Bank 0 (Standard GM Bank) trước
-                    outputPort.send([0xB0 | channel, 0x00, 0x00]); 
-                    
-                    // 2. Gửi lệnh đổi tiếng/style chính thức
-                    outputPort.send([msg[0], progNum]);
-        
-                    console.log(`Đã gửi Bank 0 + Program Change: ${progNum}`);
-                } catch (e) {
-                    console.error("Lỗi gửi MIDI:", e);
-                }
-            }
+let currentBankMSB = 0; 
+
+function sendMidiMessage(msg) {
+    if (outputPort) {
+        try { 
+            let type = (msg[0] >= 0xC0 && msg[0] <= 0xCF) ? 'voice' : 'style';
+            let channel = (type === 'voice') ? 0 : 1; 
+            let progNum = msg[1];
+
+            // Thử lần lượt các Bank phổ biến trên đàn điện: 0, 1, 32, 64, 120, 127
+            // Mỗi lần bác xoay núm, nó sẽ tự động đổi Bank để test xem Bank nào ăn lệnh
+            const testBanks = [0, 1, 32, 64, 120, 127];
+            currentBankMSB = testBanks[(progNum + currentBankMSB) % testBanks.length];
+
+            // 1. Gửi lệnh Control Change chọn Bank MSB (CC 0)
+            outputPort.send([0xB0 | channel, 0x00, currentBankMSB]); 
+            
+            // 2. Gửi lệnh Control Change chọn Bank LSB (CC 32) = 0 cho chắc chắn
+            outputPort.send([0xB0 | channel, 0x20, 0x00]); 
+
+            // 3. Gửi lệnh Program Change đổi tiếng/style
+            outputPort.send([msg[0], progNum]);
+
+            console.log(`Đang test -> Bank MSB: ${currentBankMSB} | Program Change: ${progNum}`);
+        } catch (e) {
+            console.error("Lỗi gửi MIDI:", e);
         }
+    }
+}
     </script>
 </body>
 </html>
