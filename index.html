@@ -312,4 +312,101 @@
             favs.forEach((fav) => {
                 let btn = document.createElement('button');
                 btn.className = `action-btn btn-${type}`;
-                let numStr = (fav
+                let numStr = (fav.id + 1).toString().padStart(3, '0');
+                let itemName = list[fav.id] || "Unknown";
+                btn.innerHTML = `<span style="font-weight: normal;">${numStr}</span><br>${itemName}`;
+                
+                btn.onclick = () => {
+                    state[type].current = fav.id;
+                    state[type].angle = state[type].current * degreesPerStep;
+                    updateUI(type, true);
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function toggleFavorite(type) {
+            let curr = state[type].current;
+            let favs = state[type].favorites;
+            let index = favs.findIndex(f => f.id === curr);
+            
+            if (index > -1) {
+                favs.splice(index, 1);
+            } else {
+                favs.push({ id: curr });
+            }
+            try { localStorage.setItem(`midi_${type}_favorites`, JSON.stringify(favs)); } catch (e) {}
+            updateUI(type, false); 
+            renderFavorites(type);
+        }
+
+        try {
+            let savedVoice = localStorage.getItem('midi_voice_favorites');
+            if (savedVoice) state.voice.favorites = JSON.parse(savedVoice);
+
+            let savedStyle = localStorage.getItem('midi_style_favorites');
+            if (savedStyle) state.style.favorites = JSON.parse(savedStyle);
+        } catch (e) {}
+
+        updateUI('voice', false);
+        renderFavorites('voice');
+        updateUI('style', false);
+        renderFavorites('style');
+
+        let midiAccess = null;
+        let outputPort = null;
+        const statusText = document.getElementById('statusText');
+        const outputSelect = document.getElementById('midiOutputSelect');
+
+        // Hàm cập nhật danh sách thiết bị MIDI mà không làm mất lựa chọn hiện tại
+        function updateMidiOutputs(midi) {
+            let currentSelectedId = outputSelect.value;
+            outputSelect.innerHTML = '<option value="">-- Chọn thiết bị MIDI Output --</option>';
+            
+            midi.outputs.forEach(output => {
+                let option = document.createElement('option');
+                option.value = output.id; 
+                option.text = output.name;
+                outputSelect.appendChild(option);
+            });
+
+            // Khôi phục lại lựa chọn trước đó nếu thiết bị vẫn tồn tại
+            if (currentSelectedId && midi.outputs.get(currentSelectedId)) {
+                outputSelect.value = currentSelectedId;
+                outputPort = midi.outputs.get(currentSelectedId);
+            } else {
+                outputPort = null;
+            }
+        }
+
+        try {
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess({ sysex: true })
+                    .then(midi => {
+                        midiAccess = midi;
+                        statusText.innerText = "Trạng thái MIDI: Đã kết nối!";
+                        statusText.style.color = "green";
+                        
+                        updateMidiOutputs(midiAccess);
+                        
+                        // Lắng nghe sự kiện cắm/rút thiết bị MIDI mà không reload lại trang
+                        midiAccess.onstatechange = () => {
+                            updateMidiOutputs(midiAccess);
+                        };
+                    })
+                    .catch(err => {});
+            }
+        } catch (error) {}
+
+        outputSelect.addEventListener('change', (e) => {
+            outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
+        });
+
+        function sendMidiMessage(msg) {
+            if (outputPort) {
+                try { outputPort.send(msg); } catch (e) {}
+            }
+        }
+    </script>
+</body>
+</html>
