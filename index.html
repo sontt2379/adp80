@@ -403,19 +403,22 @@
         });
 
         function sendMidiMessage(msg) {
-            // In ra mã HEX của tín hiệu để dễ theo dõi
-            let hexMsg = msg.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ');
-            console.log(`MIDI Sent đến [${outputPort ? outputPort.name : 'Chưa chọn'}]:`, hexMsg);
-        
             if (outputPort) {
                 try { 
-                    outputPort.send(msg); 
-                    console.log("-> Gửi thành công!");
+                    let type = (msg[0] >= 0xC0 && msg[0] <= 0xCF) ? 'voice' : 'style';
+                    let channel = (type === 'voice') ? 0 : 1; // Voice channel 1 (0x80/0xC0), Style channel 2
+                    let progNum = msg[1];
+        
+                    // 1. Gửi lệnh chọn Bank 0 (Standard GM Bank) trước
+                    outputPort.send([0xB0 | channel, 0x00, 0x00]); 
+                    
+                    // 2. Gửi lệnh đổi tiếng/style chính thức
+                    outputPort.send([msg[0], progNum]);
+        
+                    console.log(`Đã gửi Bank 0 + Program Change: ${progNum}`);
                 } catch (e) {
-                    console.error("-> Lỗi khi gửi MIDI:", e);
+                    console.error("Lỗi gửi MIDI:", e);
                 }
-            } else {
-                console.warn("-> Chưa chọn thiết bị MIDI Output!");
             }
         }
     </script>
