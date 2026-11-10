@@ -193,6 +193,9 @@
 
         const degreesPerStep = 15;
 
+        // BỘ NHỚ TẠM CHỐNG LẶP MIDI (Anti-Feedback)
+        let activeNotes = new Set();
+
         function updateUI(type, sendMidi = true) {
             let curr = state[type].current;
             let angle = state[type].angle;
@@ -207,7 +210,6 @@
             let svg = document.getElementById(`${type}HeartSvg`);
             let btn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Heart`);
 
-            // Màu tim theo chủ đề: Voice = Xanh dương, Style = Xanh lá
             let activeColor = (type === 'voice') ? "#007bff" : "#28a745";
 
             if (isFav) {
@@ -358,7 +360,6 @@
         const statusText = document.getElementById('statusText');
         const outputSelect = document.getElementById('midiOutputSelect');
 
-        // Hàm cập nhật danh sách thiết bị MIDI mà không làm mất lựa chọn hiện tại
         function updateMidiOutputs(midi) {
             let currentSelectedId = outputSelect.value;
             outputSelect.innerHTML = '<option value="">-- Chọn thiết bị MIDI Output --</option>';
@@ -370,7 +371,6 @@
                 outputSelect.appendChild(option);
             });
 
-            // Khôi phục lại lựa chọn trước đó nếu thiết bị vẫn tồn tại
             if (currentSelectedId && midi.outputs.get(currentSelectedId)) {
                 outputSelect.value = currentSelectedId;
                 outputPort = midi.outputs.get(currentSelectedId);
@@ -389,50 +389,80 @@
                         
                         updateMidiOutputs(midiAccess);
                         
-                        // Lắng nghe sự kiện cắm/rút thiết bị MIDI mà không reload lại trang
                         midiAccess.onstatechange = () => {
                             updateMidiOutputs(midiAccess);
                         };
+
+                        // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
+                        for (let input of midiAccess.inputs.values()) {
+                            input.onmidimessage = function(event) {
+                                // Lọc bỏ rác hệ thống
+                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+                                
+                                let cmd = event.data[0] >> 4; 
+                                let note = event.data[1];
+                                let velocity = event.data[2];
+                                
+                                // Xử lý Note Off
+                                if (cmd === 8 || (cmd === 9 && velocity === 0)) {
+                                    if (activeNotes.has(note)) {
+                                        activeNotes.delete(note);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                } 
+                                // Xử lý Note On
+                                else if (cmd === 9) {
+                                    if (!activeNotes.has(note)) {
+                                        activeNotes.add(note);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                }
+                                // Dội thẳng các lệnh khác (Pedal, Pitch Bend...)
+                                else {
+                                    if (outputPort) outputPort.send(event.data);
+                                }
+                            };
+                        }
                     })
-                    .catch(err => {});
+                    .catch(err => {
+                        console.error("Lỗi Web MIDI API:", err);
+                    });
             }
         } catch (error) {}
 
         outputSelect.addEventListener('change', (e) => {
+            // 1. Trả lại Local Control cho thiết bị cũ (nếu có) trước khi chuyển
+            if (outputPort) {
+                try { outputPort.send([0xB0, 122, 127]); } catch (err) {}
+            }
+
+            // 2. Gán thiết bị mới
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
+
+            // 3. Tắt Local Control của thiết bị mới và đẩy Voice trên web xuống đàn
+            if (outputPort) {
+                try {
+                    outputPort.send([0xB0, 122, 0]); // Tắt Local Control
+                    let currentVoice = state.voice.current;
+                    outputPort.send([0xC0, currentVoice]); // Khởi tạo đúng tiếng đang hiện trên màn hình
+                } catch (err) {
+                    console.error("Lỗi khi cấu hình thiết bị mới:", err);
+                }
+            }
         });
 
-        
+        // HÀM GỬI LỆNH MIDI ĐÃ ĐƯỢC TỐI GIẢN
         function sendMidiMessage(msg) {
             if (outputPort) {
-                let status = msg[0]; // Nhận chính xác 0xC0 (Voice) hoặc 0xC1 (Style)
-                let progNum = msg[1];
-                
-                // Tính toán lệnh Control Change (0xB0 đến 0xBF) tương ứng với kênh hiện tại
-                let channel = status & 0x0F; 
-                let controlChangeStatus = 0xB0 | channel; 
-        
                 try {
-                    // 1. Gửi Bank Select MSB (Control Change 0, giá trị 0)
-                    outputPort.send([controlChangeStatus, 0x00, 0x00]);
-                    
-                    // 2. Gửi Bank Select LSB (Control Change 32, giá trị 0)
-                    outputPort.send([controlChangeStatus, 0x20, 0x00]);
-        
-                    // 3. Gửi lệnh Program Change
-                    outputPort.send([status, progNum]);
-                    
-                    console.log(`Đã gửi: Voice/Style ID ${progNum} vào Channel ${channel + 1}`);
+                    // Đã bỏ các lệnh Bank Select gây nhiễu, chỉ gửi lệnh chuyển Voice/Style gốc
+                    outputPort.send(msg);
+                    console.log(`Đã gửi lệnh: [${msg}]`);
                 } catch (error) {
                     console.error("Lỗi khi gửi MIDI:", error);
                 }
             }
         }
-
-
-
-
-        
     </script>
 </body>
 </html>
