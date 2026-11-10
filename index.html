@@ -405,12 +405,27 @@
         
         function sendMidiMessage(msg) {
             if (outputPort) {
+                let status = msg[0]; // Nhận chính xác 0xC0 (Voice) hoặc 0xC1 (Style)
                 let progNum = msg[1];
-                // Quét từ 0xC0 đến 0xCF (Channel 1 đến 16)
-                for (let ch = 0xC0; ch <= 0xCF; ch++) {
-                    outputPort.send([ch, progNum]);
+                
+                // Tính toán lệnh Control Change (0xB0 đến 0xBF) tương ứng với kênh hiện tại
+                let channel = status & 0x0F; 
+                let controlChangeStatus = 0xB0 | channel; 
+        
+                try {
+                    // 1. Gửi Bank Select MSB (Control Change 0, giá trị 0)
+                    outputPort.send([controlChangeStatus, 0x00, 0x00]);
+                    
+                    // 2. Gửi Bank Select LSB (Control Change 32, giá trị 0)
+                    outputPort.send([controlChangeStatus, 0x20, 0x00]);
+        
+                    // 3. Gửi lệnh Program Change
+                    outputPort.send([status, progNum]);
+                    
+                    console.log(`Đã gửi: Voice/Style ID ${progNum} vào Channel ${channel + 1}`);
+                } catch (error) {
+                    console.error("Lỗi khi gửi MIDI:", error);
                 }
-                console.log(`Đã rải thảm Program Change ${progNum} lên cả 16 channels!`);
             }
         }
 
