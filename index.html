@@ -53,6 +53,7 @@
         }
         .knob-bg:active { cursor: grabbing; }
 
+        /* Chấm xoay màu xám nhạt chung */
         .knob-indicator {
             width: 14px; height: 14px; background: #6c757d;
             position: absolute; top: 15px; left: 93px; 
@@ -72,9 +73,11 @@
         }
         .btn-heart:active { transform: scale(0.8); }
         
+        /* Màu sắc riêng biệt cho từng Tab */
         #voiceTab .display-title { font-size: 24px; font-weight: 800; color: #007bff; margin-bottom: 25px; min-height: 29px; }
         #styleTab .display-title { font-size: 24px; font-weight: 800; color: #28a745; margin-bottom: 25px; min-height: 29px; }
 
+        /* Layout Buttons */
         .grid-2-cols { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 25px;}
         button.action-btn { padding: 8px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
         
@@ -108,11 +111,14 @@
     <div id="voiceTab" class="tab-content active">
         <div class="knob-container">
             <div class="display-title" id="voiceNameDisplay">Acoustic Grand Piano</div>
+            
             <div class="knob-wrapper">
                 <div class="display-number" id="voiceNumberDisplay">001</div>
+                
                 <div class="knob-bg" id="voiceKnob" data-type="voice">
                     <div class="knob-indicator" id="voiceIndicator"></div>
                 </div>
+                
                 <button class="btn-heart" id="btnVoiceHeart" onclick="toggleFavorite('voice')">
                     <svg id="voiceHeartSvg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -127,11 +133,14 @@
     <div id="styleTab" class="tab-content">
         <div class="knob-container">
             <div class="display-title" id="styleNameDisplay">8 Beat Pop</div>
+            
             <div class="knob-wrapper">
                 <div class="display-number" id="styleNumberDisplay">001</div>
+                
                 <div class="knob-bg" id="styleKnob" data-type="style">
                     <div class="knob-indicator" id="styleIndicator"></div>
                 </div>
+                
                 <button class="btn-heart" id="btnStyleHeart" onclick="toggleFavorite('style')">
                     <svg id="styleHeartSvg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -184,6 +193,9 @@
 
         const degreesPerStep = 15;
 
+        // BỘ NHỚ TẠM CHỐNG LẶP MIDI (Anti-Feedback)
+        let activeNotes = new Set();
+
         function updateUI(type, sendMidi = true) {
             let curr = state[type].current;
             let angle = state[type].angle;
@@ -196,8 +208,10 @@
             let favs = state[type].favorites;
             let isFav = favs.some(f => f.id === curr);
             let svg = document.getElementById(`${type}HeartSvg`);
+            let btn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Heart`);
 
             let activeColor = (type === 'voice') ? "#007bff" : "#28a745";
+
             if (isFav) {
                 svg.setAttribute('fill', activeColor);
                 svg.style.color = activeColor;
@@ -208,7 +222,7 @@
 
             if (sendMidi) {
                 if (type === 'voice') {
-                    sendMidiMessage([0xC0, curr]); // Cực kỳ gọn gàng: Chỉ gửi Program Change
+                    sendMidiMessage([0xC0, curr]);
                 } else {
                     sendMidiMessage([0xC1, curr]); 
                 }
@@ -234,6 +248,7 @@
 
         function doDrag(x, y) {
             if (!activeKnob) return;
+            
             let currentAngle = getAngle(x, y);
             let delta = currentAngle - lastAngle;
             
@@ -264,11 +279,13 @@
 
         document.querySelectorAll('.knob-bg').forEach(knob => {
             let type = knob.getAttribute('data-type');
+
             knob.addEventListener('mousedown', e => startDrag(type, knob, e.clientX, e.clientY));
             knob.addEventListener('touchstart', e => {
                 e.preventDefault();
                 startDrag(type, knob, e.touches[0].clientX, e.touches[0].clientY);
             }, { passive: false });
+
             knob.addEventListener('wheel', e => {
                 e.preventDefault();
                 let maxIndex = (type === 'voice') ? 127 : (gmStyles.length - 1);
@@ -284,6 +301,7 @@
 
         document.addEventListener('mousemove', e => { if (activeKnob) { e.preventDefault(); doDrag(e.clientX, e.clientY); } });
         document.addEventListener('mouseup', stopDrag);
+
         document.addEventListener('touchmove', e => { if (activeKnob) { e.preventDefault(); doDrag(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
         document.addEventListener('touchend', stopDrag);
 
@@ -327,6 +345,7 @@
         try {
             let savedVoice = localStorage.getItem('midi_voice_favorites');
             if (savedVoice) state.voice.favorites = JSON.parse(savedVoice);
+
             let savedStyle = localStorage.getItem('midi_style_favorites');
             if (savedStyle) state.style.favorites = JSON.parse(savedStyle);
         } catch (e) {}
@@ -362,8 +381,7 @@
 
         try {
             if (navigator.requestMIDIAccess) {
-                // Xóa bỏ luôn cả quyền sysex vì chúng ta không cần dùng đến nó nữa, giúp tương thích tốt hơn trên Mobile
-                navigator.requestMIDIAccess()
+                navigator.requestMIDIAccess({ sysex: true })
                     .then(midi => {
                         midiAccess = midi;
                         statusText.innerText = "Trạng thái MIDI: Đã kết nối!";
@@ -374,6 +392,42 @@
                         midiAccess.onstatechange = () => {
                             updateMidiOutputs(midiAccess);
                         };
+
+                        // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
+                        for (let input of midiAccess.inputs.values()) {
+                            input.onmidimessage = function(event) {
+                                // Lọc bỏ rác hệ thống
+                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+                                
+                                let status = event.data[0];
+                                let cmd = status >> 4; 
+                                let channel = status & 0x0F;
+                                let note = event.data[1];
+                                let velocity = event.data[2];
+                                
+                                // Chìa khóa riêng cho từng nốt trên từng kênh
+                                let noteKey = `${channel}-${note}`;
+                                
+                                // Xử lý Note Off
+                                if (cmd === 8 || (cmd === 9 && velocity === 0)) {
+                                    if (activeNotes.has(noteKey)) {
+                                        activeNotes.delete(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                } 
+                                // Xử lý Note On
+                                else if (cmd === 9) {
+                                    if (!activeNotes.has(noteKey)) {
+                                        activeNotes.add(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                }
+                                // Dội thẳng các lệnh khác (Pedal, Pitch Bend...)
+                                else {
+                                    if (outputPort) outputPort.send(event.data);
+                                }
+                            };
+                        }
                     })
                     .catch(err => {
                         console.error("Lỗi Web MIDI API:", err);
@@ -382,26 +436,35 @@
         } catch (error) {}
 
         outputSelect.addEventListener('change', (e) => {
+            // 1. Trả lại Local Control cho thiết bị cũ (nếu có) trước khi chuyển
+            if (outputPort) {
+                try { outputPort.send([0xB0, 122, 127]); } catch (err) {}
+            }
+
+            // 2. Gán thiết bị mới
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
 
-            // Đợi 600ms cho kết nối Bluetooth LE ổn định rồi đẩy tiếng hiện tại xuống đàn
+            // 3. Tắt Local Control với độ trễ (Fix lỗi Bluetooth bị rớt gói tin)
             if (outputPort) {
                 setTimeout(() => {
                     try {
+                        outputPort.send([0xB0, 122, 0]); // Tắt Local Control
                         let currentVoice = state.voice.current;
-                        outputPort.send([0xC0, currentVoice]); 
-                        console.log("Đã đồng bộ tiếng với thiết bị.");
+                        outputPort.send([0xC0, currentVoice]); // Khởi tạo đúng tiếng đang hiện trên màn hình
+                        console.log("Đã đồng bộ xong với Bluetooth.");
                     } catch (err) {
-                        console.error("Lỗi khi đồng bộ:", err);
+                        console.error("Lỗi khi cấu hình thiết bị mới:", err);
                     }
-                }, 600);
+                }, 600); // Chờ 600 mili-giây để sóng Bluetooth ổn định
             }
         });
 
+        // HÀM GỬI LỆNH MIDI ĐÃ ĐƯỢC TỐI GIẢN
         function sendMidiMessage(msg) {
             if (outputPort) {
                 try {
-                    outputPort.send(msg); // Lệnh nguyên thủy sạch sẽ, không có Bank Select
+                    // Đã bỏ các lệnh Bank Select gây nhiễu, chỉ gửi lệnh chuyển Voice/Style gốc
+                    outputPort.send(msg);
                     console.log(`Đã gửi lệnh: [${msg}]`);
                 } catch (error) {
                     console.error("Lỗi khi gửi MIDI:", error);
