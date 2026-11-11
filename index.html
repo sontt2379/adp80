@@ -397,6 +397,19 @@
                             input.onmidimessage = function(event) {};
                         }
 
+                        setInterval(() => {
+                            if (outputPort) {
+                                try {
+                                    // Gửi mã 0xFE (Active Sensing). 
+                                    // Đây là một mã MIDI tiêu chuẩn báo hiệu "Tôi vẫn ở đây, đừng ngắt kết nối".
+                                    // Nó hoàn toàn vô hình, không phát ra tiếng và không ảnh hưởng đến đàn.
+                                    outputPort.send([0xFE]); 
+                                } catch (e) {
+                                    // Bỏ qua lỗi nếu cáp bị rút hoặc mất kết nối đột ngột
+                                }
+                            }
+                        }, 2000); // Gửi mỗi 2 giây (2000 mili-giây)
+
                         // // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
                         // for (let input of midiAccess.inputs.values()) {
                         //     input.onmidimessage = function(event) {
