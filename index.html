@@ -393,33 +393,32 @@
                             updateMidiOutputs(midiAccess);
                         };
 
-                        // KÍCH HOẠT LẮNG NGHE & TÌM MẬT KHẨU CỦA ĐÀN (ANTI-ECHO)
-                        for (let input of midiAccess.inputs.values()) {
-                            input.onmidimessage = function(event) {
-                                // Lọc bỏ rác hệ thống (Active Sensing và Clock)
-                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
-                        
-                                let status = event.data[0];
-                                let cmd = status >> 4;
-                        
-                                // XỬ LÝ NỐT NHẠC: CHỈ NHẬN, KHÔNG DỘI LẠI (GIẢI QUYẾT TRIỆT ĐỂ BỆNH TRỄ TIẾNG)
-                                if (cmd === 8 || cmd === 9) {
-                                    // Không gọi outputPort.send() ở đây nữa
-                                    return; 
-                                } 
-                                
-                                // CÁC LỆNH KHÁC: DỘI LẠI ĐỂ GIỮ KẾT NỐI VÀ IN RA ĐỂ XEM "MẬT KHẨU" LÀ GÌ
-                                else {
-                                    if (outputPort) {
-                                        outputPort.send(event.data);
-                                        
-                                        // In ra console để chúng ta biết đàn Acutis gửi cái gì mà thần thánh thế
-                                        let hex = Array.from(event.data).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
-                                        console.log(`Đàn gửi lệnh bí mật: [${event.data}] (Hex: ${hex}) -> Đã dội lại!`);
-                                    }
-                                }
-                            };
-                        }
+// KÍCH HOẠT LẮNG NGHE & CHẶN VÒNG LẶP (ANTI-LOOP)
+for (let input of midiAccess.inputs.values()) {
+    input.onmidimessage = function(event) {
+        // Bỏ qua rác hệ thống
+        if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+
+        let status = event.data[0];
+        let cmd = status >> 4; // Lấy 4 bit đầu để biết loại lệnh
+
+        // DANH SÁCH ĐEN CẦN CHẶN DỘI LẠI (KHÔNG GỌI outputPort.send):
+        // cmd 8, 9: Nốt nhạc (Chống trễ/echo tiếng khi đánh)
+        // cmd 11 (0xB0): Control Change (Chặn vòng lặp bật/tắt Local)
+        // cmd 12 (0xC0): Program Change (Chặn vòng lặp đổi tiếng)
+        if (cmd === 8 || cmd === 9 || cmd === 11 || cmd === 12) {
+            return; // Im lặng, không dội lại gì cả
+        } 
+        
+        // Chỉ dội lại các lệnh thực sự khác (nếu có)
+        else {
+            if (outputPort) {
+                outputPort.send(event.data);
+                console.log(`Đã dội lại lệnh an toàn: [${event.data}]`);
+            }
+        }
+    };
+}
 
                         setInterval(() => {
                             if (outputPort) {
@@ -494,30 +493,12 @@
 
 
 
-        // Tạo một tiện ích để dừng (sleep) một chút giữa các lệnh
-        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         
-        // Đổi hàm gửi lệnh thành async để có thể dùng 'await'
-        async function sendMidiMessage(msg) {
-            if (outputPort) {
-                try {
-                    // 1. Tắt Local Control 
-                    outputPort.send([0xB0, 122, 0]);
-                    await sleep(50); // Cho phần cứng 50 mili-giây để "tiêu hoá"
-        
-                    // 2. Bật lại Local Control (Hoàn thành chuỗi mở khoá)
-                    outputPort.send([0xB0, 122, 127]);
-                    await sleep(50); // Cho phần cứng thêm 50 mili-giây nữa
-        
-                    // 3. Gửi lệnh Program Change / Control Change chính
-                    outputPort.send(msg);
-                    console.log(`Đã gửi lệnh thành công: [${msg}]`);
-                    
-                } catch (error) {
-                    console.error("Lỗi khi gửi MIDI:", error);
-                }
-            }
-        }
+function sendMidiMessage(msg) {
+    if (outputPort) {
+        outputPort.send(msg); // Chỉ cần đúng 1 dòng này!
+    }
+}
 
         // outputSelect.addEventListener('change', (e) => {
         //     // 1. Trả lại Local Control cho thiết bị cũ (nếu có) trước khi chuyển
