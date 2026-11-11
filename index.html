@@ -393,6 +393,10 @@
                             updateMidiOutputs(midiAccess);
                         };
 
+                        for (let input of midiAccess.inputs.values()) {
+                            input.onmidimessage = function(event) {};
+                        }
+
                         // // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
                         // for (let input of midiAccess.inputs.values()) {
                         //     input.onmidimessage = function(event) {
@@ -516,18 +520,6 @@
 
         
 
-        // // HÀM GỬI LỆNH MIDI ĐÃ ĐƯỢC TỐI GIẢN
-        // function sendMidiMessage(msg) {
-        //     if (outputPort) {
-        //         try {
-        //             // Đã bỏ các lệnh Bank Select gây nhiễu, chỉ gửi lệnh chuyển Voice/Style gốc
-        //             outputPort.send(msg);
-        //             console.log(`Đã gửi lệnh: [${msg}]`);
-        //         } catch (error) {
-        //             console.error("Lỗi khi gửi MIDI:", error);
-        //         }
-        //     }
-        // }
 
 
 
