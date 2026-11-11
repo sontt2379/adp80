@@ -442,29 +442,40 @@
 
         outputSelect.addEventListener('change', (e) => {
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
-        
+            
             if (outputPort) {
-                // Đồng bộ tiếng ngay khi chọn cổng bằng cách gọi luôn hàm chuẩn
-                let currentVoice = state.voice.current;
-                sendMidiMessage([0xC0, currentVoice]); 
-                console.log("Đã kết nối và đồng bộ thiết bị.");
+                console.log("Đang chờ Bluetooth ổn định...");
+                
+                // Đợi 600ms rồi mới gửi lệnh đồng bộ tiếng đầu tiên
+                setTimeout(() => {
+                    let currentVoice = state.voice.current;
+                    sendMidiMessage([0xC0, currentVoice]); 
+                    console.log("Đã kết nối và đồng bộ thiết bị thành công.");
+                }, 600);
             }
         });
 
 
 
-        // HÀM GỬI LỆNH MIDI ĐÃ TÍCH HỢP "CÚ HÍCH" MỞ KHÓA
-        function sendMidiMessage(msg) {
+        // Tạo một tiện ích để dừng (sleep) một chút giữa các lệnh
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        
+        // Đổi hàm gửi lệnh thành async để có thể dùng 'await'
+        async function sendMidiMessage(msg) {
             if (outputPort) {
                 try {
-                    // 1. Mớm cú hích mở khóa phần cứng trước mọi lệnh gửi đi
-                    outputPort.send([0xB0, 122, 0]);   
-                    outputPort.send([0xB0, 122, 127]); 
+                    // 1. Tắt Local Control 
+                    outputPort.send([0xB0, 122, 0]);
+                    await sleep(50); // Cho phần cứng 50 mili-giây để "tiêu hoá"
+        
+                    // 2. Bật lại Local Control (Hoàn thành chuỗi mở khoá)
+                    outputPort.send([0xB0, 122, 127]);
+                    await sleep(50); // Cho phần cứng thêm 50 mili-giây nữa
+        
+                    // 3. Gửi lệnh Program Change / Control Change chính
+                    outputPort.send(msg);
+                    console.log(`Đã gửi lệnh thành công: [${msg}]`);
                     
-                    // 2. Gửi lệnh chính (đổi Voice hoặc Style)
-                    outputPort.send(msg); 
-                    
-                    console.log(`Đã gửi lệnh (kèm mở khóa): [${msg}]`);
                 } catch (error) {
                     console.error("Lỗi khi gửi MIDI:", error);
                 }
