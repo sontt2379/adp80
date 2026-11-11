@@ -393,8 +393,32 @@
                             updateMidiOutputs(midiAccess);
                         };
 
+                        // KÍCH HOẠT LẮNG NGHE & TÌM MẬT KHẨU CỦA ĐÀN (ANTI-ECHO)
                         for (let input of midiAccess.inputs.values()) {
-                            input.onmidimessage = function(event) {};
+                            input.onmidimessage = function(event) {
+                                // Lọc bỏ rác hệ thống (Active Sensing và Clock)
+                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+                        
+                                let status = event.data[0];
+                                let cmd = status >> 4;
+                        
+                                // XỬ LÝ NỐT NHẠC: CHỈ NHẬN, KHÔNG DỘI LẠI (GIẢI QUYẾT TRIỆT ĐỂ BỆNH TRỄ TIẾNG)
+                                if (cmd === 8 || cmd === 9) {
+                                    // Không gọi outputPort.send() ở đây nữa
+                                    return; 
+                                } 
+                                
+                                // CÁC LỆNH KHÁC: DỘI LẠI ĐỂ GIỮ KẾT NỐI VÀ IN RA ĐỂ XEM "MẬT KHẨU" LÀ GÌ
+                                else {
+                                    if (outputPort) {
+                                        outputPort.send(event.data);
+                                        
+                                        // In ra console để chúng ta biết đàn Acutis gửi cái gì mà thần thánh thế
+                                        let hex = Array.from(event.data).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+                                        console.log(`Đàn gửi lệnh bí mật: [${event.data}] (Hex: ${hex}) -> Đã dội lại!`);
+                                    }
+                                }
+                            };
                         }
 
                         setInterval(() => {
