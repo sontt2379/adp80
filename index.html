@@ -92,7 +92,7 @@
 
     <h2 style="margin-top:0px">Acutis ADP-80 Controller</h2>
     
-    <div class="status" id="statusText">Trạng thái MIDI: Đang chờ...</div>
+    <div class="status" id="statusText">Đang chờ kết nối...</div>
     <div class="file-warning" id="fileWarning">
         ⚠️ <b>Chrome từ chối quyền MIDI</b> vì bạn đang mở bằng <code>file:///</code>.<br>
     </div>
@@ -459,8 +459,8 @@
             
             // 2. XỬ LÝ KHI CHỌN THIẾT BỊ MỚI
             if (outputPort) {
-                //if (statusText) statusText.innerText = "Đã kết nối!"; 
-                //statusText.style.color = "green"; // (Tùy chọn) Đổi màu cho đẹp
+	
+            	statusText.hide();
                 
                 setTimeout(() => {
                     // Tắt Local Control để Web làm chủ
@@ -476,7 +476,8 @@
                     console.log("Đã kết nối: Tự động tắt Local Control và đồng bộ tiếng thành công.");
                 }, 600);
             } else {
-                if (statusText) statusText.innerText = "Chưa kết nối thiết bị";
+            	statusText.show();
+                statusText.innerText = "Đang chờ kết nối...";
                 //statusText.style.color = "red";
             }
         });
