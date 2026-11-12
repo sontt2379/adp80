@@ -463,6 +463,9 @@
                 setTimeout(() => {
                     // Tắt Local Control để Web làm chủ
                     sendMidiMessage([0xB0, 122, 0]); 
+
+                    // Kéo âm lượng kênh MIDI lên tối đa (127) để bằng với âm lượng gốc của đàn
+                    sendMidiMessage([0xB0, 7, 127]);
                     
                     // Đồng bộ tiếng hiện tại trên Web xuống đàn
                     let currentVoice = state.voice.current;
