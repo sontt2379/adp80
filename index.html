@@ -194,7 +194,7 @@
         const degreesPerStep = 15;
 
         // BỘ NHỚ TẠM CHỐNG LẶP MIDI (Anti-Feedback)
-//        let activeNotes = new Set();
+        let activeNotes = new Set();
 
         function updateUI(type, sendMidi = true) {
             let curr = state[type].current;
@@ -393,81 +393,49 @@
                             updateMidiOutputs(midiAccess);
                         };
 
-// KÍCH HOẠT LẮNG NGHE & CHẶN VÒNG LẶP (ANTI-LOOP)
-for (let input of midiAccess.inputs.values()) {
-    input.onmidimessage = function(event) {
-        // Bỏ qua rác hệ thống
-        if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
 
-        let status = event.data[0];
-        let cmd = status >> 4; // Lấy 4 bit đầu để biết loại lệnh
-
-        // DANH SÁCH ĐEN CẦN CHẶN DỘI LẠI (KHÔNG GỌI outputPort.send):
-        // cmd 8, 9: Nốt nhạc (Chống trễ/echo tiếng khi đánh)
-        // cmd 11 (0xB0): Control Change (Chặn vòng lặp bật/tắt Local)
-        // cmd 12 (0xC0): Program Change (Chặn vòng lặp đổi tiếng)
-        if (cmd === 8 || cmd === 9 || cmd === 11 || cmd === 12) {
-            return; // Im lặng, không dội lại gì cả
-        } 
-        
-        // Chỉ dội lại các lệnh thực sự khác (nếu có)
-        else {
-            if (outputPort) {
-                outputPort.send(event.data);
-                console.log(`Đã dội lại lệnh an toàn: [${event.data}]`);
-            }
-        }
-    };
-}
-
-                        setInterval(() => {
-                            if (outputPort) {
-                                try {
-                                    // Gửi mã 0xFE (Active Sensing). 
-                                    // Đây là một mã MIDI tiêu chuẩn báo hiệu "Tôi vẫn ở đây, đừng ngắt kết nối".
-                                    // Nó hoàn toàn vô hình, không phát ra tiếng và không ảnh hưởng đến đàn.
-                                    outputPort.send([0xFE]); 
-                                } catch (e) {
-                                    // Bỏ qua lỗi nếu cáp bị rút hoặc mất kết nối đột ngột
+                        // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
+                        for (let input of midiAccess.inputs.values()) {
+                            input.onmidimessage = function(event) {
+                                // Lọc bỏ rác hệ thống (Active Sensing, Clock)
+                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+                        
+                                let status = event.data[0];
+                                let cmd = status >> 4;
+                        
+                                // Nếu lệnh không phải là nốt nhạc (Pedal, Pitch Bend...), dội thẳng và thoát luôn cho nhanh
+                                if (cmd !== 8 && cmd !== 9) {
+                                    if (outputPort) outputPort.send(event.data);
+                                    return;
                                 }
-                            }
-                        }, 2000); // Gửi mỗi 2 giây (2000 mili-giây)
+                        
+                                // --- XỬ LÝ NỐT NHẠC ---
+                                let channel = status & 0x0F;
+                                let note = event.data[1];
+                                let velocity = event.data[2];
+                        
+                                // TỐI ƯU HÓA: Dùng dịch bit (Bitwise Shift) để tạo Key dạng số nguyên thay vì String
+                                // channel (0-15) dịch trái 8 bit, cộng với note (0-127). Ví dụ kênh 0 nốt 60 sẽ ra số 60.
+                                let noteKey = (channel << 8) | note; 
+                        
+                                // Xử lý Note Off
+                                if (cmd === 8 || (cmd === 9 && velocity === 0)) {
+                                    if (activeNotes.has(noteKey)) {
+                                        activeNotes.delete(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                } 
+                                // Xử lý Note On
+                                else if (cmd === 9) {
+                                    if (!activeNotes.has(noteKey)) {
+                                        activeNotes.add(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                }
+                            };
+                        }
 
-                        // // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
-                        // for (let input of midiAccess.inputs.values()) {
-                        //     input.onmidimessage = function(event) {
-                        //         // Lọc bỏ rác hệ thống
-                        //         if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
-                                
-                        //         let status = event.data[0];
-                        //         let cmd = status >> 4; 
-                        //         let channel = status & 0x0F;
-                        //         let note = event.data[1];
-                        //         let velocity = event.data[2];
-                                
-                        //         // Chìa khóa riêng cho từng nốt trên từng kênh
-                        //         let noteKey = `${channel}-${note}`;
-                                
-                        //         // Xử lý Note Off
-                        //         if (cmd === 8 || (cmd === 9 && velocity === 0)) {
-                        //             if (activeNotes.has(noteKey)) {
-                        //                 activeNotes.delete(noteKey);
-                        //                 if (outputPort) outputPort.send(event.data);
-                        //             }
-                        //         } 
-                        //         // Xử lý Note On
-                        //         else if (cmd === 9) {
-                        //             if (!activeNotes.has(noteKey)) {
-                        //                 activeNotes.add(noteKey);
-                        //                 if (outputPort) outputPort.send(event.data);
-                        //             }
-                        //         }
-                        //         // Dội thẳng các lệnh khác (Pedal, Pitch Bend...)
-                        //         else {
-                        //             if (outputPort) outputPort.send(event.data);
-                        //         }
-                        //     };
-                        // }
+                        
                     })
                     .catch(err => {
                         console.error("Lỗi Web MIDI API:", err);
@@ -477,82 +445,49 @@ for (let input of midiAccess.inputs.values()) {
 
 
         outputSelect.addEventListener('change', (e) => {
+            // 1. XỬ LÝ KHI BỎ CHỌN THIẾT BỊ (Trả lại Local Control ON trước khi ngắt)
+            if (!e.target.value && outputPort) {
+                try {
+                    outputPort.send([0xB0, 122, 127]); 
+                    console.log("Đã ngắt kết nối: Trả lại Local Control ON cho đàn.");
+                } catch (err) {}
+            }
+        
+            // Cập nhật lại cổng kết nối mới
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
             
+            // 2. XỬ LÝ KHI CHỌN THIẾT BỊ MỚI
             if (outputPort) {
-                console.log("Đang chờ Bluetooth ổn định...");
+                console.log("Đang chờ kết nối ổn định...");
                 
-                // Đợi 600ms rồi mới gửi lệnh đồng bộ tiếng đầu tiên
                 setTimeout(() => {
+                    // Tắt Local Control để Web làm chủ
+                    sendMidiMessage([0xB0, 122, 0]); 
+                    
+                    // Đồng bộ tiếng hiện tại trên Web xuống đàn
                     let currentVoice = state.voice.current;
                     sendMidiMessage([0xC0, currentVoice]); 
-                    console.log("Đã kết nối và đồng bộ thiết bị thành công.");
+                    
+                    console.log("Đã kết nối: Tự động tắt Local Control và đồng bộ tiếng thành công.");
                 }, 600);
             }
         });
 
-
-
+        // TỰ ĐỘNG BẬT LẠI LOCAL CONTROL KHI TẮT TAB HOẶC RELOAD TRANG (F5)
+        window.addEventListener('beforeunload', () => {
+            if (outputPort) {
+                try {
+                    outputPort.send([0xB0, 122, 127]); 
+                } catch (err) {}
+            }
+        });
         
-function sendMidiMessage(msg) {
-    if (outputPort) {
-        outputPort.send(msg); // Chỉ cần đúng 1 dòng này!
-    }
-}
-
-        // outputSelect.addEventListener('change', (e) => {
-        //     // 1. Trả lại Local Control cho thiết bị cũ (nếu có) trước khi chuyển
-        //     if (outputPort) {
-        //         try { outputPort.send([0xB0, 122, 127]); } catch (err) {}
-        //     }
-
-        //     // 2. Gán thiết bị mới
-        //     outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
-
-        //     // 3. Tắt Local Control với độ trễ (Fix lỗi Bluetooth bị rớt gói tin)
-        //     if (outputPort) {
-        //         setTimeout(() => {
-        //             try {
-        //                 outputPort.send([0xB0, 122, 0]); // Tắt Local Control
-        //                 let currentVoice = state.voice.current;
-        //                 outputPort.send([0xC0, currentVoice]); // Khởi tạo đúng tiếng đang hiện trên màn hình
-        //                 console.log("Đã đồng bộ xong với Bluetooth.");
-        //             } catch (err) {
-        //                 console.error("Lỗi khi cấu hình thiết bị mới:", err);
-        //             }
-        //         }, 600); // Chờ 600 mili-giây để sóng Bluetooth ổn định
-        //     }
-        // });
-
         
-// outputSelect.addEventListener('change', (e) => {
-//     outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
-
-//     if (outputPort) {
-//         setTimeout(() => {
-//             try {
-//                 // 1. Chuỗi "mở khóa" thần thánh mà bạn vừa phát hiện:
-//                 outputPort.send([0xB0, 122, 0]);   // Tắt tạm thời
-//                 outputPort.send([0xB0, 122, 127]); // Bật lại ngay lập tức để mở khóa cổng Program Change
-                
-//                 // 2. Đồng bộ tiếng hiện tại trên web xuống đàn
-//                 let currentVoice = state.voice.current;
-//                 outputPort.send([0xC0, currentVoice]); 
-                
-//                 console.log("Đã kích hoạt mở khóa và đồng bộ tiếng thành công!");
-//             } catch (err) {
-//                 console.error("Lỗi khi khởi tạo thiết bị:", err);
-//             }
-//         }, 600); // Đợi Bluetooth ổn định
-//     }
-// });
-
-        
-
-
-
-
-        
+        function sendMidiMessage(msg) {
+            if (outputPort) {
+                outputPort.send(msg);
+            }
+        }
     </script>
 </body>
 </html>
