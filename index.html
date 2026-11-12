@@ -460,7 +460,7 @@
             // 2. XỬ LÝ KHI CHỌN THIẾT BỊ MỚI
             if (outputPort) {
 	
-            	statusText.hide();
+            	statusText.style.display = "none";	//ẩn
                 
                 setTimeout(() => {
                     // Tắt Local Control để Web làm chủ
@@ -476,7 +476,7 @@
                     console.log("Đã kết nối: Tự động tắt Local Control và đồng bộ tiếng thành công.");
                 }, 600);
             } else {
-            	statusText.show();
+            	statusText.style.display = "block";
                 statusText.innerText = "Đang chờ kết nối...";
                 //statusText.style.color = "red";
             }
