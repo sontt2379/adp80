@@ -90,12 +90,11 @@
 </head>
 <body>
 
-    <h2 style="margin-top:10px">Acutis ADP-80 Controller</h2>
+    <h2 style="margin-top:0px">Acutis ADP-80 Controller</h2>
     
     <div class="status" id="statusText">Trạng thái MIDI: Đang chờ...</div>
     <div class="file-warning" id="fileWarning">
         ⚠️ <b>Chrome từ chối quyền MIDI</b> vì bạn đang mở bằng <code>file:///</code>.<br>
-        <i>Nhưng đừng lo, giao diện web bên dưới vẫn hoạt động bình thường để bạn test xoay nút!</i>
     </div>
     
     <select id="midiOutputSelect">
@@ -384,8 +383,8 @@
                 navigator.requestMIDIAccess({ sysex: true })
                     .then(midi => {
                         midiAccess = midi;
-                        statusText.innerText = "Trạng thái MIDI: Đã kết nối!";
-                        statusText.style.color = "green";
+                        //statusText.innerText = "Trạng thái MIDI: Đã kết nối!";
+                        //statusText.style.color = "green";
                         
                         updateMidiOutputs(midiAccess);
                         
@@ -460,8 +459,8 @@
             
             // 2. XỬ LÝ KHI CHỌN THIẾT BỊ MỚI
             if (outputPort) {
-                if (statusText) statusText.innerText = "Đã kết nối!"; 
-                statusText.style.color = "green"; // (Tùy chọn) Đổi màu cho đẹp
+                //if (statusText) statusText.innerText = "Đã kết nối!"; 
+                //statusText.style.color = "green"; // (Tùy chọn) Đổi màu cho đẹp
                 
                 setTimeout(() => {
                     // Tắt Local Control để Web làm chủ
@@ -478,7 +477,7 @@
                 }, 600);
             } else {
                 if (statusText) statusText.innerText = "Chưa kết nối thiết bị";
-                statusText.style.color = "red";
+                //statusText.style.color = "red";
             }
         });
 
