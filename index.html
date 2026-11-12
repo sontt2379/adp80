@@ -455,10 +455,13 @@
         
             // Cập nhật lại cổng kết nối mới
             outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
+
+            let statusText = document.getElementById('midi-status');
             
             // 2. XỬ LÝ KHI CHỌN THIẾT BỊ MỚI
             if (outputPort) {
-                console.log("Đang chờ kết nối ổn định...");
+                if (statusText) statusText.innerText = "Đã kết nối!"; 
+                statusText.style.color = "green"; // (Tùy chọn) Đổi màu cho đẹp
                 
                 setTimeout(() => {
                     // Tắt Local Control để Web làm chủ
@@ -473,6 +476,9 @@
                     
                     console.log("Đã kết nối: Tự động tắt Local Control và đồng bộ tiếng thành công.");
                 }, 600);
+            } else {
+                if (statusText) statusText.innerText = "Chưa kết nối thiết bị";
+                statusText.style.color = "red";
             }
         });
 
