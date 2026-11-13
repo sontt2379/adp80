@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acutis ADP-80 Controller</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; 
+            user-select: none; -webkit-user-select: none; 
+        }
+        h2 { color: #333; margin-bottom: 5px; }
+        .status { margin-bottom: 20px; font-size: 13px; color: #888; }
+        
+        .file-warning { 
+            background: #ffeeba; color: #856404; padding: 10px; border-radius: 8px; 
+            font-size: 13px; margin: 0 auto 15px auto; max-width: 400px; display: none; 
+        }
+        
+        select {
+            padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; 
+            width: 100%; max-width: 300px; margin-bottom: 20px; outline: none;
+        }
+        
+        .tabs {
+            display: flex; max-width: 400px; margin: 0 auto 15px auto;
+            background: #e9ecef; border-radius: 12px; overflow: hidden;
+        }
+        .tab-btn {
+            flex: 1; padding: 12px; font-size: 16px; font-weight: bold;
+            background: transparent; color: #495057; border: none; cursor: pointer;
+        }
+        .tab-btn.active { background-color: #6c757d; color: white; }
+        
+        .tab-content {
+            display: none; max-width: 400px; margin: 0 auto;
+        }
+        .tab-content.active { display: block; }
+        
+        /* --- KHU VỰC ĐIỀU KHIỂN CHUNG --- */
+        .knob-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 0px; }
+        
+        .knob-wrapper {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; max-width: 320px; 
+        }
+        
+        .knob-bg {
+            width: 200px; height: 200px; background: #ddd; border-radius: 50%; 
+            position: relative; cursor: grab; 
+            touch-action: none; flex-shrink: 0;
+        }
+        .knob-bg:active { cursor: grabbing; }
+
+        /* Chấm xoay màu xám nhạt chung */
+        .knob-indicator {
+            width: 14px; height: 14px; background: #6c757d;
+            position: absolute; top: 15px; left: 93px; 
+            border-radius: 50%;
+            pointer-events: none; 
+        }
+        
+        .display-number { 
+            font-size: 18px; font-weight: normal; color: #555; 
+            width: 40px; text-align: left;
+        }
+        
+        .btn-heart { 
+            background: none; border: none; cursor: pointer; padding: 0; 
+            display: flex; align-items: center; justify-content: flex-end;
+            width: 40px; height: 40px; transition: transform 0.1s;
+        }
+        .btn-heart:active { transform: scale(0.8); }
+        
+        /* Màu sắc riêng biệt cho từng Tab */
+        #voiceTab .display-title { font-size: 24px; font-weight: 800; color: #007bff; margin-bottom: 25px; min-height: 29px; }
+        #styleTab .display-title { font-size: 24px; font-weight: 800; color: #28a745; margin-bottom: 25px; min-height: 29px; }
+
+        /* Layout Buttons */
+        .grid-2-cols { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 25px;}
+        button.action-btn { padding: 8px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+        
+        .btn-voice { background-color: #007bff; color: white; }
+        .btn-voice:active { background-color: #0056b3; transform: scale(0.98); }
+        
+        .btn-style { background-color: #28a745; color: white; }
+        .btn-style:active { background-color: #1e7e34; transform: scale(0.98); }
+    </style>
+</head>
+<body>
+
+    <h2>Acutis ADP-80 Controller</h2>
+    
+    <div class="status" id="statusText">Trạng thái MIDI: Đang chờ...</div>
+    <div class="file-warning" id="fileWarning">
+        ⚠️ <b>Chrome từ chối quyền MIDI</b> vì bạn đang mở bằng <code>file:///</code>.<br>
+        <i>Nhưng đừng lo, giao diện web bên dưới vẫn hoạt động bình thường để bạn test xoay nút!</i>
+    </div>
+    
+    <select id="midiOutputSelect">
+        <option value="">-- Chọn thiết bị MIDI Output --</option>
+    </select>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab(event, 'voiceTab')">Voice</button>
+        <button class="tab-btn" onclick="openTab(event, 'styleTab')">Style</button>
+    </div>
+
+    <!-- TAB VOICE -->
+    <div id="voiceTab" class="tab-content active">
+        <div class="knob-container">
+            <div class="display-title" id="voiceNameDisplay">Acoustic Grand Piano</div>
+            
+            <div class="knob-wrapper">
+                <div class="display-number" id="voiceNumberDisplay">001</div>
+                
+                <div class="knob-bg" id="voiceKnob" data-type="voice">
+                    <div class="knob-indicator" id="voiceIndicator"></div>
+                </div>
+                
+                <button class="btn-heart" id="btnVoiceHeart" onclick="toggleFavorite('voice')">
+                    <svg id="voiceHeartSvg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="grid-2-cols" id="voiceFavoritesGrid"></div>
+    </div>
+
+    <!-- TAB STYLE -->
+    <div id="styleTab" class="tab-content">
+        <div class="knob-container">
+            <div class="display-title" id="styleNameDisplay">8 Beat Pop</div>
+            
+            <div class="knob-wrapper">
+                <div class="display-number" id="styleNumberDisplay">001</div>
+                
+                <div class="knob-bg" id="styleKnob" data-type="style">
+                    <div class="knob-indicator" id="styleIndicator"></div>
+                </div>
+                
+                <button class="btn-heart" id="btnStyleHeart" onclick="toggleFavorite('style')">
+                    <svg id="styleHeartSvg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="grid-2-cols" id="styleFavoritesGrid"></div>
+    </div>
+
+    <script>
+        if (window.location.protocol === 'file:') {
+            document.getElementById('fileWarning').style.display = 'block';
+        }
+
+        function openTab(evt, tabId) {
+            document.querySelectorAll(".tab-content, .tab-btn").forEach(el => el.classList.remove("active"));
+            document.getElementById(tabId).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        const gmInstruments = [
+            "Acoustic Grand Piano", "Bright Acoustic Piano", "Electric Grand Piano", "Honky-tonk Piano", "Electric Piano 1", "Electric Piano 2", "Harpsichord", "Clavi",
+            "Celesta", "Glockenspiel", "Music Box", "Vibraphone", "Marimba", "Xylophone", "Tubular Bells", "Dulcimer",
+            "Drawbar Organ", "Percussive Organ", "Rock Organ", "Church Organ", "Reed Organ", "Accordion", "Harmonica", "Tango Accordion",
+            "Acoustic Guitar (nylon)", "Acoustic Guitar (steel)", "Electric Guitar (jazz)", "Electric Guitar (clean)", "Electric Guitar (muted)", "Overdriven Guitar", "Distortion Guitar", "Guitar harmonics",
+            "Acoustic Bass", "Electric Bass (finger)", "Electric Bass (pick)", "Fretless Bass", "Slap Bass 1", "Slap Bass 2", "Synth Bass 1", "Synth Bass 2",
+            "Violin", "Viola", "Cello", "Contrabass", "Tremolo Strings", "Pizzicato Strings", "Orchestral Harp", "Timpani",
+            "String Ensemble 1", "String Ensemble 2", "SynthStrings 1", "SynthStrings 2", "Choir Aahs", "Voice Oohs", "Synth Voice", "Orchestra Hit",
+            "Trumpet", "Trombone", "Tuba", "Muted Trumpet", "French Horn", "Brass Section", "SynthBrass 1", "SynthBrass 2",
+            "Soprano Sax", "Alto Sax", "Tenor Sax", "Baritone Sax", "Oboe", "English Horn", "Bassoon", "Clarinet",
+            "Piccolo", "Flute", "Recorder", "Pan Flute", "Blown Bottle", "Shakuhachi", "Whistle", "Ocarina",
+            "Lead 1 (square)", "Lead 2 (sawtooth)", "Lead 3 (calliope)", "Lead 4 (chiff)", "Lead 5 (charang)", "Lead 6 (voice)", "Lead 7 (fifths)", "Lead 8 (bass + lead)",
+            "Pad 1 (new age)", "Pad 2 (warm)", "Pad 3 (polysynth)", "Pad 4 (choir)", "Pad 5 (bowed)", "Pad 6 (metallic)", "Pad 7 (halo)", "Pad 8 (sweep)",
+            "FX 1 (rain)", "FX 2 (soundtrack)", "FX 3 (crystal)", "FX 4 (atmosphere)", "FX 5 (brightness)", "FX 6 (goblins)", "FX 7 (echoes)", "FX 8 (sci-fi)",
+            "Sitar", "Banjo", "Shamisen", "Koto", "Kalimba", "Bag pipe", "Fiddle", "Shanai",
+            "Tinkle Bell", "Agogo", "Steel Drums", "Woodblock", "Taiko Drum", "Melodic Tom", "Synth Drum", "Reverse Cymbal",
+            "Guitar Fret Noise", "Breath Noise", "Seashore", "Bird Tweet", "Telephone Ring", "Helicopter", "Applause", "Gunshot"
+        ];
+
+        const gmStyles = [
+            "8 Beat Pop", "Ballad", "Rock 1", "Rock 2", "Disco", "Funk", "Jazz", "Bossa Nova",
+            "Cha Cha", "Rumba", "Waltz", "Tango", "Slow Rock", "Reggae", "Blues", "Country"
+        ];
+
+        let state = {
+            voice: { current: 0, angle: 0, favorites: [] },
+            style: { current: 0, angle: 0, favorites: [] }
+        };
+
+        const degreesPerStep = 15;
+
+        // BỘ NHỚ TẠM CHỐNG LẶP MIDI (Anti-Feedback)
+        let activeNotes = new Set();
+
+        function updateUI(type, sendMidi = true) {
+            let curr = state[type].current;
+            let angle = state[type].angle;
+            let list = (type === 'voice') ? gmInstruments : gmStyles;
+            
+            document.getElementById(`${type}NumberDisplay`).innerText = (curr + 1).toString().padStart(3, '0');
+            document.getElementById(`${type}NameDisplay`).innerText = list[curr] || "Unknown";
+            document.getElementById(`${type}Knob`).style.transform = `rotate(${angle}deg)`;
+
+            let favs = state[type].favorites;
+            let isFav = favs.some(f => f.id === curr);
+            let svg = document.getElementById(`${type}HeartSvg`);
+            let btn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Heart`);
+
+            let activeColor = (type === 'voice') ? "#007bff" : "#28a745";
+
+            if (isFav) {
+                svg.setAttribute('fill', activeColor);
+                svg.style.color = activeColor;
+            } else {
+                svg.setAttribute('fill', 'none');
+                svg.style.color = "#adb5bd"; 
+            }
+
+            if (sendMidi) {
+                if (type === 'voice') {
+                    sendMidiMessage([0xC0, curr]);
+                } else {
+                    sendMidiMessage([0xC1, curr]); 
+                }
+            }
+        }
+
+        let activeKnob = null;
+        let activeType = null;
+        let centerX = 0, centerY = 0, lastAngle = 0;
+
+        function getAngle(x, y) {
+            return Math.atan2(y - centerY, x - centerX) * 180 / Math.PI;
+        }
+
+        function startDrag(type, element, x, y) {
+            activeType = type;
+            activeKnob = element;
+            let rect = activeKnob.getBoundingClientRect();
+            centerX = rect.left + rect.width / 2;
+            centerY = rect.top + rect.height / 2;
+            lastAngle = getAngle(x, y);
+        }
+
+        function doDrag(x, y) {
+            if (!activeKnob) return;
+            
+            let currentAngle = getAngle(x, y);
+            let delta = currentAngle - lastAngle;
+            
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            
+            lastAngle = currentAngle;
+            state[activeType].angle += delta;
+
+            let maxIndex = (activeType === 'voice') ? 127 : (gmStyles.length - 1);
+            let maxAngle = maxIndex * degreesPerStep;
+            state[activeType].angle = Math.max(0, Math.min(maxAngle, state[activeType].angle));
+
+            let newVal = Math.round(state[activeType].angle / degreesPerStep);
+            if (newVal !== state[activeType].current) {
+                state[activeType].current = newVal;
+                if (navigator.vibrate) navigator.vibrate(30);
+                updateUI(activeType, true);
+            } else {
+                activeKnob.style.transform = `rotate(${state[activeType].angle}deg)`;
+            }
+        }
+
+        function stopDrag() {
+            activeKnob = null;
+            activeType = null;
+        }
+
+        document.querySelectorAll('.knob-bg').forEach(knob => {
+            let type = knob.getAttribute('data-type');
+
+            knob.addEventListener('mousedown', e => startDrag(type, knob, e.clientX, e.clientY));
+            knob.addEventListener('touchstart', e => {
+                e.preventDefault();
+                startDrag(type, knob, e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+
+            knob.addEventListener('wheel', e => {
+                e.preventDefault();
+                let maxIndex = (type === 'voice') ? 127 : (gmStyles.length - 1);
+                let newVal = Math.max(0, Math.min(maxIndex, state[type].current + (e.deltaY > 0 ? -1 : 1)));
+                if (newVal !== state[type].current) {
+                    state[type].current = newVal;
+                    state[type].angle = state[type].current * degreesPerStep;
+                    if (navigator.vibrate) navigator.vibrate(30);
+                    updateUI(type, true);
+                }
+            }, { passive: false });
+        });
+
+        document.addEventListener('mousemove', e => { if (activeKnob) { e.preventDefault(); doDrag(e.clientX, e.clientY); } });
+        document.addEventListener('mouseup', stopDrag);
+
+        document.addEventListener('touchmove', e => { if (activeKnob) { e.preventDefault(); doDrag(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
+        document.addEventListener('touchend', stopDrag);
+
+        function renderFavorites(type) {
+            const grid = document.getElementById(`${type}FavoritesGrid`);
+            grid.innerHTML = '';
+            let list = (type === 'voice') ? gmInstruments : gmStyles;
+            let favs = state[type].favorites;
+
+            favs.forEach((fav) => {
+                let btn = document.createElement('button');
+                btn.className = `action-btn btn-${type}`;
+                let numStr = (fav.id + 1).toString().padStart(3, '0');
+                let itemName = list[fav.id] || "Unknown";
+                btn.innerHTML = `<span style="font-weight: normal;">${numStr}</span><br>${itemName}`;
+                
+                btn.onclick = () => {
+                    state[type].current = fav.id;
+                    state[type].angle = state[type].current * degreesPerStep;
+                    updateUI(type, true);
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function toggleFavorite(type) {
+            let curr = state[type].current;
+            let favs = state[type].favorites;
+            let index = favs.findIndex(f => f.id === curr);
+            
+            if (index > -1) {
+                favs.splice(index, 1);
+            } else {
+                favs.push({ id: curr });
+            }
+            try { localStorage.setItem(`midi_${type}_favorites`, JSON.stringify(favs)); } catch (e) {}
+            updateUI(type, false); 
+            renderFavorites(type);
+        }
+
+        try {
+            let savedVoice = localStorage.getItem('midi_voice_favorites');
+            if (savedVoice) state.voice.favorites = JSON.parse(savedVoice);
+
+            let savedStyle = localStorage.getItem('midi_style_favorites');
+            if (savedStyle) state.style.favorites = JSON.parse(savedStyle);
+        } catch (e) {}
+
+        updateUI('voice', false);
+        renderFavorites('voice');
+        updateUI('style', false);
+        renderFavorites('style');
+
+        let midiAccess = null;
+        let outputPort = null;
+        const statusText = document.getElementById('statusText');
+        const outputSelect = document.getElementById('midiOutputSelect');
+
+        function updateMidiOutputs(midi) {
+            let currentSelectedId = outputSelect.value;
+            outputSelect.innerHTML = '<option value="">-- Chọn thiết bị MIDI Output --</option>';
+            
+            midi.outputs.forEach(output => {
+                let option = document.createElement('option');
+                option.value = output.id; 
+                option.text = output.name;
+                outputSelect.appendChild(option);
+            });
+
+            if (currentSelectedId && midi.outputs.get(currentSelectedId)) {
+                outputSelect.value = currentSelectedId;
+                outputPort = midi.outputs.get(currentSelectedId);
+            } else {
+                outputPort = null;
+            }
+        }
+
+        try {
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess({ sysex: true })
+                    .then(midi => {
+                        midiAccess = midi;
+                        statusText.innerText = "Trạng thái MIDI: Đã kết nối!";
+                        statusText.style.color = "green";
+                        
+                        updateMidiOutputs(midiAccess);
+                        
+                        midiAccess.onstatechange = () => {
+                            updateMidiOutputs(midiAccess);
+                        };
+
+                        // KÍCH HOẠT LẮNG NGHE & DỘI TÍN HIỆU (MIDI THRU)
+                        for (let input of midiAccess.inputs.values()) {
+                            input.onmidimessage = function(event) {
+                                // Lọc bỏ rác hệ thống
+                                if (event.data[0] === 0xFE || event.data[0] === 0xF8) return;
+                                
+                                let status = event.data[0];
+                                let cmd = status >> 4; 
+                                let channel = status & 0x0F;
+                                let note = event.data[1];
+                                let velocity = event.data[2];
+                                
+                                // Chìa khóa riêng cho từng nốt trên từng kênh
+                                let noteKey = `${channel}-${note}`;
+                                
+                                // Xử lý Note Off
+                                if (cmd === 8 || (cmd === 9 && velocity === 0)) {
+                                    if (activeNotes.has(noteKey)) {
+                                        activeNotes.delete(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                } 
+                                // Xử lý Note On
+                                else if (cmd === 9) {
+                                    if (!activeNotes.has(noteKey)) {
+                                        activeNotes.add(noteKey);
+                                        if (outputPort) outputPort.send(event.data);
+                                    }
+                                }
+                                // Dội thẳng các lệnh khác (Pedal, Pitch Bend...)
+                                else {
+                                    if (outputPort) outputPort.send(event.data);
+                                }
+                            };
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Lỗi Web MIDI API:", err);
+                    });
+            }
+        } catch (error) {}
+
+        outputSelect.addEventListener('change', (e) => {
+            // 1. Trả lại Local Control cho thiết bị cũ (nếu có) trước khi chuyển
+            if (outputPort) {
+                try { outputPort.send([0xB0, 122, 127]); } catch (err) {}
+            }
+
+            // 2. Gán thiết bị mới
+            outputPort = e.target.value ? midiAccess.outputs.get(e.target.value) : null;
+
+            // 3. Tắt Local Control với độ trễ (Fix lỗi Bluetooth bị rớt gói tin)
+            if (outputPort) {
+                setTimeout(() => {
+                    try {
+                        outputPort.send([0xB0, 122, 0]); // Tắt Local Control
+                        let currentVoice = state.voice.current;
+                        outputPort.send([0xC0, currentVoice]); // Khởi tạo đúng tiếng đang hiện trên màn hình
+                        console.log("Đã đồng bộ xong với Bluetooth.");
+                    } catch (err) {
+                        console.error("Lỗi khi cấu hình thiết bị mới:", err);
+                    }
+                }, 600); // Chờ 600 mili-giây để sóng Bluetooth ổn định
+            }
+        });
+
+        // HÀM GỬI LỆNH MIDI ĐÃ ĐƯỢC TỐI GIẢN
+        function sendMidiMessage(msg) {
+            if (outputPort) {
+                try {
+                    // Đã bỏ các lệnh Bank Select gây nhiễu, chỉ gửi lệnh chuyển Voice/Style gốc
+                    outputPort.send(msg);
+                    console.log(`Đã gửi lệnh: [${msg}]`);
+                } catch (error) {
+                    console.error("Lỗi khi gửi MIDI:", error);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
